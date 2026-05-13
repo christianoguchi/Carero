@@ -27,7 +27,7 @@ export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
     resolver: zodResolver(staffSchema),
     defaultValues: staff ? {
       ...staff,
-      skills: staff.skills.join(', '),
+      skills: staff.skills,
     } as any : {
       role: 'Support Worker',
       availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
