@@ -239,7 +239,7 @@ export default function Dashboard() {
     toast({
       title: "Emergency Absence Logged",
       description: `${member?.name} marked as sick. Affected shifts highlighted.`,
-      variant: "destructive" as any,
+      variant: "destructive",
     });
   };
 
