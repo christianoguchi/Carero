@@ -8,7 +8,7 @@ import { Staff } from '@/types';
 const staffSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   role: z.enum(['Manager', 'Support Worker', 'Senior Support Worker', 'Volunteer']),
-  skills: z.string().transform(val => val.split(',').map(s => s.trim()).filter(Boolean)),
+  skills: z.string(),
   availability: z.array(z.string()).min(1, 'Select at least one day'),
   support_level_max: z.number().min(1).max(3),
   notes: z.string().optional(),
