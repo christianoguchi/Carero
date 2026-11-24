@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UserCheck, 
@@ -113,7 +114,7 @@ export default function UsersPage() {
                   <p className="text-sm font-bold text-slate-400">Level {user.support_level} Support</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                 <button 
                   onClick={() => setEditingUser(user)}
                   className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-primary-600"
@@ -156,14 +157,14 @@ export default function UsersPage() {
             </div>
 
             <div className="mt-6 pt-6 border-t border-slate-50 flex gap-3">
-              <button className="flex-1 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
+              <button onClick={() => setEditingUser(user)} className="flex-1 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
                 <FileText className="w-4 h-4" />
-                Profile
+                Edit profile
               </button>
-              <button className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
+              <Link href="/weekly" className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
                 <Heart className="w-4 h-4" />
-                Preferences
-              </button>
+                Weekly rota
+              </Link>
             </div>
           </motion.div>
         ))}

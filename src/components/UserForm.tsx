@@ -1,9 +1,10 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { X } from 'lucide-react';
 import { ServiceUser } from '@/types';
+import { TrainingPicker } from '@/components/TrainingPicker';
 
 const userSchema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -13,7 +14,7 @@ const userSchema = z.object({
   behaviour_notes: z.string().optional(),
   notes: z.string().optional(),
   alerts: z.string().transform(val => val.split(',').map(s => s.trim()).filter(Boolean)),
-  required_skills: z.string().optional().transform(val => (val ?? '').split(',').map(s => s.trim()).filter(Boolean)),
+  required_skills: z.array(z.string()),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -25,13 +26,14 @@ interface UserFormProps {
 }
 
 export function UserForm({ user, onSubmit, onClose }: UserFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<UserFormData>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: user ? {
       ...user,
       alerts: user.alerts.join(', '),
-      required_skills: (user.required_skills ?? []).join(', '),
+      required_skills: user.required_skills ?? [],
     } as any : {
+      required_skills: [],
       support_level: 2,
       required_ratio: '1:1',
     },
@@ -40,7 +42,7 @@ export function UserForm({ user, onSubmit, onClose }: UserFormProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden">
+      <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="p-8">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -95,13 +97,13 @@ export function UserForm({ user, onSubmit, onClose }: UserFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Staff must have (comma separated)</label>
-              <input 
-                {...register('required_skills')}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                placeholder="e.g. Epilepsy Training, MAPA"
+              <label className="block text-sm font-bold text-slate-700 mb-1">Staff must be trained in</label>
+              <p className="text-xs text-slate-400 mb-2">Only staff with all of these will be suggested to support them or cover their shifts.</p>
+              <Controller
+                name="required_skills"
+                control={control}
+                render={({ field }) => <TrainingPicker value={field.value ?? []} onChange={field.onChange} />}
               />
-              <p className="text-xs text-slate-400 mt-1">Only staff with all of these skills will be suggested as cover.</p>
             </div>
 
             <div>
