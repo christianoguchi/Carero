@@ -40,3 +40,13 @@ Add staff mobile numbers on the Staff page so WhatsApp/Text open with the right 
 3. They open the link, create an account or sign in, and tap **Join**. You now share the same rota.
 
 Links work once and expire after 7 days. Pending invites can be cancelled. Managers can remove people, but never the last manager.
+
+## Weekly rota
+
+**Weekly Rota** shows Monday to Sunday at a glance:
+- **Blue** cells are covered shifts.
+- **Red** cells mean the assigned person is off and the shift needs cover.
+- **Dashed** cells mean nobody is assigned.
+- The **Off this week** row lists absences.
+
+Click any cell or day to open it on the dashboard. **Copy last week** fills only completely empty days, so it never overwrites anything. **Print week** saves a landscape PDF.

@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-export const exportToPDF = async (elementId: string, filename: string) => {
+export const exportToPDF = async (elementId: string, filename: string, orientation: 'portrait' | 'landscape' = 'portrait') => {
   const element = document.getElementById(elementId);
   if (!element) return;
 
@@ -14,12 +14,12 @@ export const exportToPDF = async (elementId: string, filename: string) => {
 
   const imgData = canvas.toDataURL('image/png');
   const pdf = new jsPDF({
-    orientation: 'portrait',
+    orientation,
     unit: 'mm',
     format: 'a4'
   });
 
-  const imgWidth = 210; // A4 width in mm
+  const imgWidth = orientation === 'landscape' ? 297 : 210; // A4 width in mm
   const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
   pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);

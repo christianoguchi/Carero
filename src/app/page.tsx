@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
@@ -69,6 +69,12 @@ export default function Dashboard() {
   const [isExporting, setIsExporting] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [coverFor, setCoverFor] = useState<string | null>(null);
+
+  // Open a specific day when linked from the weekly view (/?date=yyyy-MM-dd).
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get('date');
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setDate(d);
+  }, []);
 
   const assignments = store.assignments.filter(a => a.date === date);
   const absentStaff = staff.filter(s => isAbsentOn(s.id, date, absences));
