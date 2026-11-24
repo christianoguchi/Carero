@@ -1,14 +1,15 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { X } from 'lucide-react';
 import { Staff } from '@/types';
+import { TrainingPicker } from '@/components/TrainingPicker';
 
 const staffSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   role: z.enum(['Manager', 'Support Worker', 'Senior Support Worker', 'Volunteer']),
-  skills: z.string().transform(val => val.split(',').map(s => s.trim()).filter(Boolean)),
+  skills: z.array(z.string()),
   availability: z.array(z.string()).min(1, 'Select at least one day'),
   support_level_max: z.number().min(1).max(3),
   notes: z.string().optional(),
@@ -24,12 +25,13 @@ interface StaffFormProps {
 }
 
 export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<StaffFormData>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<StaffFormData>({
     resolver: zodResolver(staffSchema),
     defaultValues: staff ? {
       ...staff,
-      skills: staff.skills.join(', '),
+      skills: staff.skills,
     } as any : {
+      skills: [],
       role: 'Support Worker',
       availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       support_level_max: 2,
@@ -39,7 +41,7 @@ export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden">
+      <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
         <div className="p-8">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -89,11 +91,12 @@ export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Skills (comma separated)</label>
-              <input 
-                {...register('skills')}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                placeholder="e.g. First Aid, Makaton, MAPA"
+              <label className="block text-sm font-bold text-slate-700 mb-1">Training &amp; qualifications</label>
+              <p className="text-xs text-slate-400 mb-2">Tick everything they&apos;re trained in. Used to match them to service users who need it.</p>
+              <Controller
+                name="skills"
+                control={control}
+                render={({ field }) => <TrainingPicker value={field.value ?? []} onChange={field.onChange} />}
               />
             </div>
 

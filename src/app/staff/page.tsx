@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, 
@@ -111,7 +112,7 @@ export default function StaffPage() {
                   <p className="text-sm font-semibold text-primary-500">{member.role}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                 <button 
                   onClick={() => setEditingStaff(member)}
                   className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-primary-600"
@@ -131,6 +132,11 @@ export default function StaffPage() {
               <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
                 <Award className="w-4 h-4 text-slate-400" />
                 <div className="flex flex-wrap gap-1">
+                  {member.skills.length === 0 && (
+                    <button onClick={() => setEditingStaff(member)} className="text-xs font-bold text-amber-600 hover:underline">
+                      No training added – add now
+                    </button>
+                  )}
                   {member.skills.map(skill => (
                     <span key={skill} className="px-2 py-0.5 bg-slate-50 rounded-md text-[10px] font-bold border border-slate-100">
                       {skill}
@@ -165,12 +171,12 @@ export default function StaffPage() {
             </div>
 
             <div className="mt-6 pt-6 border-t border-slate-50 flex gap-3">
-              <button className="flex-1 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-sm font-bold transition-colors">
-                View Profile
+              <button onClick={() => setEditingStaff(member)} className="flex-1 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl text-sm font-bold transition-colors">
+                Edit details &amp; training
               </button>
-              <button className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl text-sm font-bold transition-colors">
-                Edit Rota
-              </button>
+              <Link href="/weekly" className="flex-1 py-2.5 bg-primary-50 hover:bg-primary-100 text-primary-600 rounded-xl text-sm font-bold transition-colors text-center">
+                Weekly rota
+              </Link>
             </div>
           </motion.div>
         ))}
