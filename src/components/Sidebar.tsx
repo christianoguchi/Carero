@@ -13,6 +13,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCarero } from '@/lib/store';
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
@@ -22,6 +23,9 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const { session, signOut, mode, settings } = useCarero();
+  const email = session?.user.email ?? '';
+  const initials = (email || settings.centre_name).slice(0, 2).toUpperCase();
   const pathname = usePathname();
 
   return (
@@ -70,12 +74,15 @@ export default function Sidebar() {
           <Settings className="w-5 h-5 text-slate-400 group-hover:text-slate-600" />
           Settings
         </Link>
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 transition-all group"
-        >
-          <LogOut className="w-5 h-5 text-rose-400 group-hover:text-rose-500" />
-          Sign Out
-        </button>
+        {mode === 'cloud' && (
+          <button
+            onClick={signOut}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 transition-all group"
+          >
+            <LogOut className="w-5 h-5 text-rose-400 group-hover:text-rose-500" />
+            Sign Out
+          </button>
+        )}
       </div>
 
       {/* User Info */}
@@ -83,12 +90,12 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-slate-100 rounded-full overflow-hidden border-2 border-white shadow-sm">
             <div className="w-full h-full bg-primary-100 flex items-center justify-center font-bold text-primary-600 text-xs">
-              JD
+              {initials}
             </div>
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-900">Jane Doe</p>
-            <p className="text-xs font-medium text-slate-400">Centre Manager</p>
+            <p className="text-sm font-bold text-slate-900 truncate max-w-[10rem]">{settings.centre_name}</p>
+            <p className="text-xs font-medium text-slate-400 truncate max-w-[10rem]">{mode === 'cloud' ? email : 'Demo mode (this browser only)'}</p>
           </div>
         </div>
       </div>

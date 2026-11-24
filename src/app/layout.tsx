@@ -6,6 +6,7 @@ import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
 import { Toaster } from "@/components/ui/toaster";
 import { CareroProvider } from "@/lib/store";
+import { AuthGate } from "@/components/AuthGate";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,6 +24,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={cn(inter.className, "min-h-screen bg-background text-foreground")}>
         <CareroProvider>
+        <AuthGate>
         <div className="flex min-h-screen overflow-hidden">
           <Sidebar />
           <MobileNav />
@@ -31,6 +33,7 @@ export default function RootLayout({
           </main>
           <Toaster />
         </div>
+        </AuthGate>
         </CareroProvider>
       </body>
     </html>

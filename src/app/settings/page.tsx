@@ -5,7 +5,7 @@ import { useCarero } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SettingsPage() {
-  const { settings, updateSettings, resetDemoData, ready } = useCarero();
+  const { settings, updateSettings, resetDemoData, ready, mode } = useCarero();
   const { toast } = useToast();
 
   if (!ready) return null;
@@ -53,11 +53,13 @@ export default function SettingsPage() {
       <section className="bg-white p-6 rounded-3xl calm-shadow border border-slate-100 space-y-3">
         <h2 className="text-lg font-bold text-slate-800">Data</h2>
         <p className="text-sm text-slate-500">
-          Data is currently saved in this browser only. Shared, multi-device storage arrives with staff log-in.
+          {mode === 'cloud'
+            ? 'Your rota is saved securely online and shared with everyone in your centre.'
+            : 'Demo mode: data is saved in this browser only.'}
         </p>
         <button
           onClick={() => {
-            if (confirm('Replace all data with the demo data? This cannot be undone.')) {
+            if (confirm('Delete ALL staff, service users and rota data for this centre and load demo data instead? This cannot be undone.')) {
               resetDemoData();
               toast({ title: 'Demo data restored' });
             }

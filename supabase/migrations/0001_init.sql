@@ -1,8 +1,6 @@
 -- Carero initial schema.
--- Not applied yet: the app currently stores data in the browser.
--- Apply this once staff log-in (Supabase Auth) is added. Every table is scoped to an
--- organisation and protected by row-level security, because service user records are
--- sensitive health data (UK GDPR special category).
+-- Every table is scoped to an organisation and protected by row-level security,
+-- because service user records are sensitive health data (UK GDPR special category).
 
 create table organisations (
   id uuid primary key default gen_random_uuid(),
@@ -26,7 +24,7 @@ create table staff (
   role text not null check (role in ('Manager', 'Support Worker', 'Senior Support Worker', 'Volunteer')),
   skills text[] not null default '{}',
   availability text[] not null default '{}',
-  preferred_users uuid[] not null default '{}',
+  preferred_users text[] not null default '{}',
   notes text not null default '',
   support_level_max int not null default 1 check (support_level_max between 1 and 3),
   shift_limits int,
@@ -41,7 +39,7 @@ create table service_users (
   support_level int not null check (support_level between 1 and 3),
   required_ratio text not null default '1:1',
   required_skills text[] not null default '{}',
-  preferred_staff uuid[] not null default '{}',
+  preferred_staff text[] not null default '{}',
   alerts text[] not null default '{}',
   notes text not null default '',
   sensory_notes text not null default '',
@@ -101,3 +99,21 @@ create policy "members all staff"         on staff         for all to authentica
 create policy "members all service_users" on service_users for all to authenticated using (is_member(organisation_id)) with check (is_member(organisation_id));
 create policy "members all assignments"   on assignments   for all to authenticated using (is_member(organisation_id)) with check (is_member(organisation_id));
 create policy "members all absences"      on absences      for all to authenticated using (is_member(organisation_id)) with check (is_member(organisation_id));
+
+-- Only signed-in users may call the membership check.
+revoke execute on function is_member(uuid) from public, anon;
+grant execute on function is_member(uuid) to authenticated;
+
+-- A newly signed-up manager creates their centre; they become its first member.
+create or replace function create_organisation(org_name text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare new_id uuid;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  insert into organisations (name) values (org_name) returning id into new_id;
+  insert into memberships (organisation_id, user_id, role) values (new_id, auth.uid(), 'manager');
+  return new_id;
+end $$;
+
+revoke execute on function create_organisation(text) from public, anon;
+grant execute on function create_organisation(text) to authenticated;
