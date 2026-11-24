@@ -6,6 +6,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's1',
     name: 'Sarah Jenkins',
+    phone: '07700 900101',
     role: 'Senior Support Worker',
     skills: ['First Aid', 'MAPA', 'Epilepsy Training'],
     availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
@@ -18,6 +19,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's2',
     name: 'Mark Thompson',
+    phone: '07700 900102',
     role: 'Support Worker',
     skills: ['First Aid', 'Food Hygiene'],
     availability: ['Monday', 'Tuesday', 'Wednesday'],
@@ -30,6 +32,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's3',
     name: 'Julie Berry',
+    phone: '07700 900103',
     role: 'Support Worker',
     skills: ['First Aid', 'Makaton'],
     availability: ['Wednesday', 'Thursday', 'Friday'],
@@ -42,6 +45,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's4',
     name: 'Priya Patel',
+    phone: '07700 900104',
     role: 'Senior Support Worker',
     skills: ['First Aid', 'MAPA', 'Epilepsy Training', 'Medication'],
     availability: ['Monday', 'Tuesday', 'Thursday', 'Friday'],

@@ -9,6 +9,7 @@ export type Staff = {
   status: 'available' | 'sick' | 'on-leave';
   support_level_max: number;
   emergency_contact?: string;
+  phone?: string;
   shift_limits?: number;
   color_tag?: string;
   avatar_url?: string;
@@ -50,6 +51,28 @@ export type Absence = {
   end_date: string;   // yyyy-MM-dd, inclusive
   reason: 'sick' | 'leave' | 'other';
   notes?: string;
+  created_at: string;
+};
+
+export type CoverRequest = {
+  id: string;
+  service_user_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: 'open' | 'filled' | 'cancelled';
+  filled_by: string | null;
+  filled_at: string | null;
+  created_at: string;
+};
+
+export type CoverOffer = {
+  id: string;
+  request_id: string;
+  staff_id: string;
+  token: string;
+  response: 'accepted' | 'declined' | null;
+  responded_at: string | null;
   created_at: string;
 };
 

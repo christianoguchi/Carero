@@ -3,6 +3,8 @@ import {
   ServiceUser as DBServiceUser,
   Assignment as DBAssignment,
   Absence as DBAbsence,
+  CoverRequest as DBCoverRequest,
+  CoverOffer as DBCoverOffer,
 } from './supabase';
 
 export type Role = DBStaff['role'];
@@ -14,6 +16,10 @@ export interface ServiceUser extends DBServiceUser {}
 export interface Assignment extends DBAssignment {}
 
 export interface Absence extends DBAbsence {}
+
+export interface CoverRequest extends DBCoverRequest {}
+
+export interface CoverOffer extends DBCoverOffer {}
 
 export interface Settings {
   centre_name: string;

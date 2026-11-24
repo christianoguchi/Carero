@@ -14,7 +14,9 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  CalendarDays
+  CalendarDays,
+  Send,
+  Clock
 } from 'lucide-react';
 import { addDays, format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -49,6 +51,7 @@ import { Draggable } from '@/components/Draggable';
 import { Droppable } from '@/components/Droppable';
 
 import { QuickActions } from '@/components/QuickActions';
+import { CoverRequestModal } from '@/components/CoverRequestModal';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
@@ -65,6 +68,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [coverFor, setCoverFor] = useState<string | null>(null);
 
   const assignments = store.assignments.filter(a => a.date === date);
   const absentStaff = staff.filter(s => isAbsentOn(s.id, date, absences));
@@ -418,7 +422,26 @@ export default function Dashboard() {
                                 <AlertCircle className="w-4 h-4" />
                                 Replacement Needed
                               </div>
-                              <div className="flex gap-1">
+                              <div className="flex flex-wrap justify-end items-center gap-1">
+                                {store.mode === 'cloud' && (() => {
+                                  const req = store.coverRequests.find(r => r.service_user_id === user.id && r.date === date && r.status === 'open');
+                                  const offers = req ? store.coverOffers.filter(o => o.request_id === req.id) : [];
+                                  return (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCoverFor(user.id);
+                                      }}
+                                      className={cn(
+                                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors",
+                                        req ? "bg-amber-100 text-amber-800 hover:bg-amber-200" : "bg-rose-600 text-white hover:bg-rose-700"
+                                      )}
+                                    >
+                                      {req ? <Clock className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                                      {req ? `Cover requested · ${offers.filter(o => o.response).length}/${offers.length} replied` : 'Request cover'}
+                                    </button>
+                                  );
+                                })()}
                                 {getSuggestedReplacements(user.id).length === 0 && (
                                   <span className="text-[10px] font-bold text-rose-400">No suitable staff free{(user.required_skills ?? []).length > 0 ? ` (needs ${user.required_skills!.join(', ')})` : ''}</span>
                                 )}
@@ -569,6 +592,24 @@ export default function Dashboard() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <AnimatePresence>
+        {coverFor && (() => {
+          const u = users.find(x => x.id === coverFor);
+          const a = store.assignments.find(x => x.date === date && x.service_user_id === coverFor);
+          if (!u) return null;
+          return (
+            <CoverRequestModal
+              key={coverFor}
+              user={u}
+              date={date}
+              startTime={a?.start_time ?? settings.default_shift_start}
+              endTime={a?.end_time ?? settings.default_shift_end}
+              onClose={() => setCoverFor(null)}
+            />
+          );
+        })()}
+      </AnimatePresence>
 
       {/* Emergency Modal */}
       <AnimatePresence>

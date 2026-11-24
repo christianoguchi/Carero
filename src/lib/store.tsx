@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Absence, Assignment, ServiceUser, Settings, Staff } from '@/types';
+import { Absence, Assignment, CoverOffer, CoverRequest, ServiceUser, Settings, Staff } from '@/types';
 import { mockServiceUsers, mockStaff } from './mockData';
 import { todayKey } from './cover';
 import { cloud, Cloud, supabase } from './supabase';
@@ -23,6 +23,8 @@ export interface CareroData {
   users: ServiceUser[];
   assignments: Assignment[];
   absences: Absence[];
+  coverRequests: CoverRequest[];
+  coverOffers: CoverOffer[];
   settings: Settings;
 }
 
@@ -44,7 +46,9 @@ const uuid = () =>
         return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
       });
 
-const emptyData = (): CareroData => ({ staff: [], users: [], assignments: [], absences: [], settings: defaultSettings });
+const emptyData = (): CareroData => ({
+  staff: [], users: [], assignments: [], absences: [], coverRequests: [], coverOffers: [], settings: defaultSettings,
+});
 
 /** Demo data with fresh ids (valid database uuids), keeping the links between records. */
 function demoData(settings: Settings = defaultSettings): CareroData {
@@ -66,6 +70,8 @@ function demoData(settings: Settings = defaultSettings): CareroData {
       { id: uuid(), staff_id: id('s2'), service_user_id: id('u2'), ...shift },
     ],
     absences: [],
+    coverRequests: [],
+    coverOffers: [],
     settings,
   };
 }
@@ -80,6 +86,8 @@ function loadLocal(): CareroData {
       users: parsed.users ?? [],
       assignments: parsed.assignments ?? [],
       absences: parsed.absences ?? [],
+      coverRequests: [],
+      coverOffers: [],
       settings: { ...defaultSettings, ...parsed.settings },
     };
   } catch {
@@ -121,6 +129,13 @@ interface CareroStore extends CareroData {
   // absences
   addAbsence: (a: Omit<Absence, 'id' | 'created_at'>) => void;
   deleteAbsence: (id: string) => void;
+  // cover requests (cloud mode only)
+  createCoverRequest: (
+    req: Pick<CoverRequest, 'service_user_id' | 'date' | 'start_time' | 'end_time'>,
+    staffIds: string[]
+  ) => Promise<{ request: CoverRequest; offers: CoverOffer[] } | { error: string }>;
+  cancelCoverRequest: (id: string) => void;
+  refresh: () => Promise<void>;
   // settings
   updateSettings: (patch: Partial<Settings>) => void;
   resetDemoData: () => void;
@@ -192,6 +207,28 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (mode === 'local' && localLoaded.current) saveLocal(data);
   }, [data, mode]);
+
+  const refresh = useCallback(async () => {
+    if (!api) return;
+    try {
+      setData(await api.loadAll());
+    } catch {
+      /* offline or transient: keep current view */
+    }
+  }, [api]);
+
+  // While any cover request is open, check for replies every 20s and whenever the tab regains focus.
+  const hasOpenRequest = data.coverRequests.some(r => r.status === 'open');
+  useEffect(() => {
+    if (!api) return;
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    const timer = hasOpenRequest ? window.setInterval(refresh, 20_000) : undefined;
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      if (timer) window.clearInterval(timer);
+    };
+  }, [api, hasOpenRequest, refresh]);
 
   // ---- Write helpers -------------------------------------------------------
 
@@ -318,6 +355,34 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
     deleteAbsence: id =>
       commit(d => ({ ...d, absences: d.absences.filter(a => a.id !== id) }), c => c.remove('absences', id)),
 
+    createCoverRequest: async (req, staffIds) => {
+      if (!api) return { error: 'Sign in to send cover requests.' };
+      try {
+        const res = await api.createCoverRequest(req, staffIds);
+        setData(d => ({
+          ...d,
+          coverRequests: [
+            ...d.coverRequests.map(r =>
+              r.service_user_id === req.service_user_id && r.date === req.date && r.status === 'open'
+                ? { ...r, status: 'cancelled' as const }
+                : r
+            ),
+            res.request,
+          ],
+          coverOffers: [...d.coverOffers, ...res.offers],
+        }));
+        return res;
+      } catch (e) {
+        return { error: (e as Error).message };
+      }
+    },
+    cancelCoverRequest: id =>
+      commit(d => ({
+        ...d,
+        coverRequests: d.coverRequests.map(r => (r.id === id ? { ...r, status: 'cancelled' as const } : r)),
+      }), c => c.cancelCoverRequest(id)),
+    refresh,
+
     updateSettings: patch =>
       commit(d => ({ ...d, settings: { ...d.settings, ...patch } }), c => c.updateSettings(patch)),
     resetDemoData: () => {
@@ -329,7 +394,7 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
         await c.insert('assignments', demo.assignments as never[]);
       });
     },
-  }), [data, mode, status, session, commit, loadOrganisation]);
+  }), [data, mode, status, session, commit, loadOrganisation, api, refresh]);
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }

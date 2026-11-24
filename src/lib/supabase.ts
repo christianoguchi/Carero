@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Absence, Assignment, ServiceUser, Settings, Staff } from '@/types';
+import { Absence, Assignment, CoverOffer, CoverRequest, ServiceUser, Settings, Staff } from '@/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -12,12 +12,14 @@ export interface CloudData {
   users: ServiceUser[];
   assignments: Assignment[];
   absences: Absence[];
+  coverRequests: CoverRequest[];
+  coverOffers: CoverOffer[];
   settings: Settings;
 }
 
 // Columns that exist in the database, per table. Anything else on the app objects is UI-only.
 const COLUMNS = {
-  staff: ['id', 'name', 'role', 'skills', 'availability', 'preferred_users', 'notes', 'support_level_max', 'shift_limits', 'emergency_contact'],
+  staff: ['id', 'name', 'role', 'skills', 'availability', 'preferred_users', 'notes', 'support_level_max', 'shift_limits', 'emergency_contact', 'phone'],
   service_users: ['id', 'name', 'support_level', 'required_ratio', 'required_skills', 'preferred_staff', 'alerts', 'notes', 'sensory_notes', 'behaviour_notes', 'transport_notes', 'medication_reminders'],
   assignments: ['id', 'staff_id', 'service_user_id', 'date', 'start_time', 'end_time', 'notes'],
   absences: ['id', 'staff_id', 'start_date', 'end_date', 'reason', 'notes'],
@@ -44,12 +46,14 @@ export function cloud(db: SupabaseClient, orgId: string) {
 
   return {
     async loadAll(): Promise<CloudData> {
-      const [o, s, u, a, ab] = await Promise.all([
+      const [o, s, u, a, ab, cr, co] = await Promise.all([
         db.from('organisations').select('*').eq('id', orgId).single(),
         db.from('staff').select('*').eq('organisation_id', orgId).order('name'),
         db.from('service_users').select('*').eq('organisation_id', orgId).order('name'),
         db.from('assignments').select('*').eq('organisation_id', orgId),
         db.from('absences').select('*').eq('organisation_id', orgId),
+        db.from('cover_requests').select('*').eq('organisation_id', orgId).neq('status', 'cancelled'),
+        db.from('cover_offers').select('*').eq('organisation_id', orgId),
       ]);
       const orgRow = must(o) as { name: string; default_shift_start: string; default_shift_end: string };
       return {
@@ -62,6 +66,8 @@ export function cloud(db: SupabaseClient, orgId: string) {
         users: must(u) as ServiceUser[],
         assignments: (must(a) as Assignment[]).map(r => ({ ...r, start_time: hhmm(r.start_time), end_time: hhmm(r.end_time) })),
         absences: must(ab) as Absence[],
+        coverRequests: (must(cr) as CoverRequest[]).map(r => ({ ...r, start_time: hhmm(r.start_time), end_time: hhmm(r.end_time) })),
+        coverOffers: must(co) as CoverOffer[],
       };
     },
 
@@ -104,6 +110,22 @@ export function cloud(db: SupabaseClient, orgId: string) {
       if (s.default_shift_start !== undefined) patch.default_shift_start = s.default_shift_start;
       if (s.default_shift_end !== undefined) patch.default_shift_end = s.default_shift_end;
       if (Object.keys(patch).length) must(await db.from('organisations').update(patch).eq('id', orgId));
+    },
+
+    /** Create a request plus one private-link offer per staff member. Returns the offers (with tokens). */
+    async createCoverRequest(req: Pick<CoverRequest, 'service_user_id' | 'date' | 'start_time' | 'end_time'>, staffIds: string[]) {
+      // Only one live request per shift: cancel any earlier open one.
+      must(await db.from('cover_requests').update({ status: 'cancelled' })
+        .eq('organisation_id', orgId).eq('service_user_id', req.service_user_id).eq('date', req.date).eq('status', 'open'));
+      const request = must(await db.from('cover_requests').insert({ ...req, ...org }).select('*').single()) as CoverRequest;
+      const offers = must(await db.from('cover_offers')
+        .insert(staffIds.map(staff_id => ({ request_id: request.id, staff_id, ...org })))
+        .select('*')) as CoverOffer[];
+      return { request: { ...request, start_time: hhmm(request.start_time), end_time: hhmm(request.end_time) }, offers };
+    },
+
+    async cancelCoverRequest(id: string) {
+      must(await db.from('cover_requests').update({ status: 'cancelled' }).eq('id', id).eq('organisation_id', orgId));
     },
 
     /** Wipe this organisation's rota data (staff/service users cascade to assignments and absences). */

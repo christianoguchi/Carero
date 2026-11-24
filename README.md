@@ -22,3 +22,13 @@ Leave `.env.local` out (or empty) to run in **demo mode**: no login, data saved 
 2. Affected service users turn red, with suggestions for who can cover.
 3. Suggestions only include staff who are in that day, not already booked, at the right support level, and hold every skill listed under the service user's **Staff must have**.
 4. **Quick Reassign** covers every gap in one click, highest support level first.
+
+## Cover requests (online version)
+
+1. On a shift that needs cover, click **Request cover**. Suitable staff are pre-ticked.
+2. Click **Create links**, then send each person their link with **WhatsApp**, **Text** or **Copy message**. This uses your own phone, so there's no SMS cost.
+3. Staff tap the link (no login) and choose **Yes, I'll cover** or **Can't do it**.
+4. The first to accept gets the shift and the rota updates itself. Everyone else's link shows "Already covered".
+
+Links carry a 256-bit random token. The message contains no service user details. The link page shows only first names, the date and the time.
+Add staff mobile numbers on the Staff page so WhatsApp/Text open with the right person.
