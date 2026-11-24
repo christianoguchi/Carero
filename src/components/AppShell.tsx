@@ -9,7 +9,7 @@ import { AuthGate } from '@/components/AuthGate';
 /** Staff-facing cover links (/cover/...) are public and full-screen; everything else is the signed-in app. */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname?.startsWith('/cover/')) return <>{children}</>;
+  if (pathname?.startsWith('/cover/') || pathname?.startsWith('/join/')) return <>{children}</>;
   return (
     <AuthGate>
       <div className="flex min-h-screen overflow-hidden">

@@ -27,6 +27,24 @@ const COLUMNS = {
 
 export type Table = keyof typeof COLUMNS;
 
+export interface Member {
+  user_id: string;
+  email: string;
+  role: 'manager' | 'staff';
+  is_me: boolean;
+}
+
+export interface Invitation {
+  id: string;
+  token: string;
+  role: 'manager' | 'staff';
+  note: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  revoked: boolean;
+}
+
 const pick = (table: Table, row: Record<string, unknown>) => {
   const out: Record<string, unknown> = {};
   for (const c of COLUMNS[table]) if (row[c] !== undefined) out[c] = row[c];
@@ -126,6 +144,28 @@ export function cloud(db: SupabaseClient, orgId: string) {
 
     async cancelCoverRequest(id: string) {
       must(await db.from('cover_requests').update({ status: 'cancelled' }).eq('id', id).eq('organisation_id', orgId));
+    },
+
+    async listMembers(): Promise<Member[]> {
+      return must(await db.rpc('list_members', { org: orgId })) as Member[];
+    },
+
+    async removeMember(userId: string): Promise<string> {
+      return must(await db.rpc('remove_member', { org: orgId, member: userId })) as string;
+    },
+
+    async listInvitations(): Promise<Invitation[]> {
+      return must(await db.from('invitations').select('*').eq('organisation_id', orgId)
+        .is('accepted_by', null).eq('revoked', false).gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })) as Invitation[];
+    },
+
+    async createInvitation(note: string): Promise<Invitation> {
+      return must(await db.from('invitations').insert({ ...org, role: 'manager', note: note || null }).select('*').single()) as Invitation;
+    },
+
+    async revokeInvitation(id: string) {
+      must(await db.from('invitations').update({ revoked: true }).eq('id', id).eq('organisation_id', orgId));
     },
 
     /** Wipe this organisation's rota data (staff/service users cascade to assignments and absences). */

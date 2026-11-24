@@ -32,3 +32,11 @@ Leave `.env.local` out (or empty) to run in **demo mode**: no login, data saved 
 
 Links carry a 256-bit random token. The message contains no service user details. The link page shows only first names, the date and the time.
 Add staff mobile numbers on the Staff page so WhatsApp/Text open with the right person.
+
+## Inviting another manager (e.g. your boss)
+
+1. **Settings → Team → Create invite link** (add who it's for, if you like).
+2. Send it with **WhatsApp**, **Email** or **Copy message**.
+3. They open the link, create an account or sign in, and tap **Join**. You now share the same rota.
+
+Links work once and expire after 7 days. Pending invites can be cancelled. Managers can remove people, but never the last manager.

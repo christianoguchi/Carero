@@ -6,6 +6,17 @@ import { Absence, Assignment, CoverOffer, CoverRequest, ServiceUser, Settings, S
 import { mockServiceUsers, mockStaff } from './mockData';
 import { todayKey } from './cover';
 import { cloud, Cloud, supabase } from './supabase';
+
+const PENDING_INVITE_KEY = 'carero:pending-invite';
+export const rememberInvite = (token: string) => {
+  try { localStorage.setItem(PENDING_INVITE_KEY, token); } catch { /* ignore */ }
+};
+export const pendingInvite = () => {
+  try { return localStorage.getItem(PENDING_INVITE_KEY); } catch { return null; }
+};
+const forgetInvite = () => {
+  try { localStorage.removeItem(PENDING_INVITE_KEY); } catch { /* ignore */ }
+};
 import { toast } from '@/hooks/use-toast';
 
 /**
@@ -108,11 +119,16 @@ interface CareroStore extends CareroData {
   status: Status;
   ready: boolean;
   session: Session | null;
+  /** The signed-in user's role in their centre (cloud mode). */
+  role: 'manager' | 'staff' | null;
+  /** Organisation-scoped API (cloud mode, signed in with a centre). */
+  api: Cloud | null;
   // auth
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   createOrganisation: (name: string) => Promise<string | null>;
+  acceptInvitation: (token: string) => Promise<string>;
   // staff
   addStaff: (s: Omit<Staff, 'id' | 'created_at'>) => void;
   updateStaff: (id: string, patch: Partial<Staff>) => void;
@@ -149,6 +165,7 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const [session, setSession] = useState<Session | null>(null);
   const [api, setApi] = useState<Cloud | null>(null);
+  const [role, setRole] = useState<'manager' | 'staff' | null>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
   const localLoaded = useRef(false);
@@ -166,7 +183,7 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
     }
     const { data: memberships, error } = await supabase
       .from('memberships')
-      .select('organisation_id')
+      .select('organisation_id, role')
       .eq('user_id', s.user.id)
       .limit(1);
     if (error) {
@@ -174,6 +191,7 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const orgId = memberships?.[0]?.organisation_id as string | undefined;
+    setRole((memberships?.[0]?.role as 'manager' | 'staff' | undefined) ?? null);
     if (!orgId) {
       setApi(null);
       setStatus('no-organisation');
@@ -258,6 +276,8 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
     status,
     ready: status === 'ready',
     session,
+    role,
+    api,
 
     signIn: async (email, password) => {
       if (!supabase) return 'Not configured';
@@ -269,12 +289,24 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
       const { data: d, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
+        // Come back to the same page (e.g. an invite link) after confirming the email.
+        options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.href : undefined },
       });
       return { error: error?.message ?? null, needsConfirmation: !error && !d.session };
     },
     signOut: async () => {
       await supabase?.auth.signOut();
+    },
+    acceptInvitation: async token => {
+      if (!supabase) return 'invalid';
+      const { data: res, error } = await supabase.rpc('accept_invitation', { invite_token: token });
+      if (error) return error.message;
+      if (res === 'joined' || res === 'already_member') {
+        forgetInvite();
+        const { data: { session: s } } = await supabase.auth.getSession();
+        await loadOrganisation(s);
+      }
+      return res as string;
     },
     createOrganisation: async name => {
       if (!supabase) return 'Not configured';
@@ -394,7 +426,7 @@ export function CareroProvider({ children }: { children: React.ReactNode }) {
         await c.insert('assignments', demo.assignments as never[]);
       });
     },
-  }), [data, mode, status, session, commit, loadOrganisation, api, refresh]);
+  }), [data, mode, status, session, role, commit, loadOrganisation, api, refresh]);
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }

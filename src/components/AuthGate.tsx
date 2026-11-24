@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Heart, Loader2 } from 'lucide-react';
-import { useCarero } from '@/lib/store';
+import Link from 'next/link';
+import { Heart, Loader2, Users } from 'lucide-react';
+import { pendingInvite, useCarero } from '@/lib/store';
 
 const input =
   'w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-medium';
 
-function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+export function Shell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
       <div className="w-full max-w-md bg-white rounded-[2rem] calm-shadow border border-slate-100 p-8">
@@ -25,9 +26,20 @@ function Shell({ title, subtitle, children }: { title: string; subtitle: string;
   );
 }
 
-function SignIn() {
+export function SignInForm({
+  startWithSignUp = false,
+  onModeChange,
+}: {
+  startWithSignUp?: boolean;
+  onModeChange?: (signUp: boolean) => void;
+}) {
   const { signIn, signUp } = useCarero();
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUpState] = useState(startWithSignUp);
+  const toggleMode = () => {
+    const next = !isSignUp;
+    setIsSignUpState(next);
+    onModeChange?.(next);
+  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -51,10 +63,7 @@ function SignIn() {
   };
 
   return (
-    <Shell
-      title={isSignUp ? 'Create your account' : 'Welcome back'}
-      subtitle={isSignUp ? 'Start managing your rota in minutes.' : 'Sign in to your centre’s rota.'}
-    >
+    <>
       <form onSubmit={submit} className="space-y-4">
         <label className="block">
           <span className="block text-sm font-bold text-slate-700 mb-1">Email</span>
@@ -86,7 +95,7 @@ function SignIn() {
       </form>
       <button
         onClick={() => {
-          setIsSignUp(v => !v);
+          toggleMode();
           setError(null);
           setNotice(null);
         }}
@@ -94,6 +103,18 @@ function SignIn() {
       >
         {isSignUp ? 'Already have an account? Sign in' : 'New to Carero? Create an account'}
       </button>
+    </>
+  );
+}
+
+function SignIn() {
+  const [isSignUp, setIsSignUp] = useState(false);
+  return (
+    <Shell
+      title={isSignUp ? 'Create your account' : 'Welcome back'}
+      subtitle={isSignUp ? 'Start managing your rota in minutes.' : 'Sign in to your centre’s rota.'}
+    >
+      <SignInForm onModeChange={setIsSignUp} />
     </Shell>
   );
 }
@@ -103,6 +124,7 @@ function CreateCentre() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const invite = typeof window !== 'undefined' ? pendingInvite() : null;
 
   return (
     <Shell title="Set up your centre" subtitle={`Signed in as ${session?.user.email ?? ''}. What’s your centre called?`}>
@@ -126,6 +148,17 @@ function CreateCentre() {
           Create centre
         </button>
       </form>
+      {invite && (
+        <Link
+          href={`/join/${invite}`}
+          className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-primary-200 text-primary-700 font-bold hover:bg-primary-50 transition-colors"
+        >
+          <Users className="w-4 h-4" /> Join the centre you were invited to
+        </Link>
+      )}
+      <p className="text-xs text-slate-400 mt-4 text-center">
+        Joining an existing centre? Open the invite link your manager sent you.
+      </p>
       <button onClick={signOut} className="w-full mt-4 text-sm font-bold text-slate-500 hover:text-slate-800">
         Sign out
       </button>

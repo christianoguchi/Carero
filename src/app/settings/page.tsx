@@ -3,6 +3,7 @@
 import React from 'react';
 import { useCarero } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import { TeamSection } from '@/components/TeamSection';
 
 export default function SettingsPage() {
   const { settings, updateSettings, resetDemoData, ready, mode } = useCarero();
@@ -49,6 +50,8 @@ export default function SettingsPage() {
         </div>
         <p className="text-xs text-slate-400">Used for new assignments. Changes save automatically.</p>
       </section>
+
+      {mode === 'cloud' && <TeamSection />}
 
       <section className="bg-white p-6 rounded-3xl calm-shadow border border-slate-100 space-y-3">
         <h2 className="text-lg font-bold text-slate-800">Data</h2>
