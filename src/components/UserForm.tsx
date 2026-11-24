@@ -13,6 +13,7 @@ const userSchema = z.object({
   behaviour_notes: z.string().optional(),
   notes: z.string().optional(),
   alerts: z.string().transform(val => val.split(',').map(s => s.trim()).filter(Boolean)),
+  required_skills: z.string().optional().transform(val => (val ?? '').split(',').map(s => s.trim()).filter(Boolean)),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -29,6 +30,7 @@ export function UserForm({ user, onSubmit, onClose }: UserFormProps) {
     defaultValues: user ? {
       ...user,
       alerts: user.alerts.join(', '),
+      required_skills: (user.required_skills ?? []).join(', '),
     } as any : {
       support_level: 2,
       required_ratio: '1:1',
@@ -90,6 +92,16 @@ export function UserForm({ user, onSubmit, onClose }: UserFormProps) {
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-bold text-rose-600"
                 placeholder="e.g. Nut Allergy, Epilepsy"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Staff must have (comma separated)</label>
+              <input 
+                {...register('required_skills')}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                placeholder="e.g. Epilepsy Training, MAPA"
+              />
+              <p className="text-xs text-slate-400 mt-1">Only staff with all of these skills will be suggested as cover.</p>
             </div>
 
             <div>

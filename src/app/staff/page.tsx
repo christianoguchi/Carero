@@ -16,12 +16,15 @@ import {
   Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { mockStaff } from '@/lib/mockData';
+import { useCarero } from '@/lib/store';
+import { getAbsenceOn, todayKey } from '@/lib/cover';
+import { format, parseISO } from 'date-fns';
 import { Staff } from '@/types';
 import { StaffForm } from '@/components/StaffForm';
 
 export default function StaffPage() {
-  const [staff, setStaff] = useState<Staff[]>(mockStaff);
+  const { staff, absences, addStaff, updateStaff, deleteStaff } = useCarero();
+  const today = todayKey();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
@@ -33,27 +36,23 @@ export default function StaffPage() {
   );
 
   const handleAddStaff = (data: any) => {
-    const newStaff: Staff = {
+    addStaff({
       ...data,
-      id: `s-${Date.now()}`,
       status: 'available',
-      created_at: new Date().toISOString(),
       preferred_users: [],
-      compatibility_tags: [],
-    };
-    setStaff(prev => [...prev, newStaff]);
+    });
     setIsFormOpen(false);
   };
 
   const handleEditStaff = (data: any) => {
     if (!editingStaff) return;
-    setStaff(prev => prev.map(s => s.id === editingStaff.id ? { ...s, ...data } : s));
+    updateStaff(editingStaff.id, data);
     setEditingStaff(null);
   };
 
   const handleDeleteStaff = (id: string) => {
     if (confirm('Are you sure you want to remove this staff member?')) {
-      setStaff(prev => prev.filter(s => s.id !== id));
+      deleteStaff(id);
     }
   };
 
@@ -146,7 +145,7 @@ export default function StaffPage() {
               </div>
 
               <div className="flex items-center gap-3 text-sm font-medium">
-                {member.status === 'available' ? (
+                {!getAbsenceOn(member.id, today, absences) ? (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
                     <span className="text-green-600 font-bold">Available</span>
@@ -154,7 +153,9 @@ export default function StaffPage() {
                 ) : (
                   <>
                     <AlertCircle className="w-4 h-4 text-rose-500" />
-                    <span className="text-rose-600 font-bold uppercase tracking-tight">Absent</span>
+                    <span className="text-rose-600 font-bold uppercase tracking-tight">
+                      Off ({getAbsenceOn(member.id, today, absences)!.reason}) until {format(parseISO(getAbsenceOn(member.id, today, absences)!.end_date), 'EEE d MMM')}
+                    </span>
                   </>
                 )}
                 <div className="ml-auto px-2 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-400">

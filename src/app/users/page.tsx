@@ -17,12 +17,12 @@ import {
   Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { mockServiceUsers } from '@/lib/mockData';
+import { useCarero } from '@/lib/store';
 import { ServiceUser } from '@/types';
 import { UserForm } from '@/components/UserForm';
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<ServiceUser[]>(mockServiceUsers);
+  const { users, addUser, updateUser, deleteUser } = useCarero();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ServiceUser | null>(null);
@@ -34,25 +34,22 @@ export default function UsersPage() {
   );
 
   const handleAddUser = (data: any) => {
-    const newUser: ServiceUser = {
+    addUser({
       ...data,
-      id: `u-${Date.now()}`,
-      created_at: new Date().toISOString(),
       preferred_staff: [],
-    };
-    setUsers(prev => [...prev, newUser]);
+    });
     setIsFormOpen(false);
   };
 
   const handleEditUser = (data: any) => {
     if (!editingUser) return;
-    setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, ...data } : u));
+    updateUser(editingUser.id, data);
     setEditingUser(null);
   };
 
   const handleDeleteUser = (id: string) => {
     if (confirm('Are you sure you want to remove this service user?')) {
-      setUsers(prev => prev.filter(u => u.id !== id));
+      deleteUser(id);
     }
   };
 
@@ -142,6 +139,13 @@ export default function UsersPage() {
                 <Activity className="w-4 h-4 text-slate-400" />
                 <span className="line-clamp-1">{user.sensory_notes || 'No sensory notes'}</span>
               </div>
+
+              {(user.required_skills ?? []).length > 0 && (
+                <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+                  <Shield className="w-4 h-4 text-slate-400" />
+                  <span className="line-clamp-1">Needs: {user.required_skills!.join(', ')}</span>
+                </div>
+              )}
 
               {user.alerts.length > 0 && (
                 <div className="flex items-center gap-3 text-sm font-bold text-rose-600 bg-rose-50 px-3 py-2 rounded-xl border border-rose-100">

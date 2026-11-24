@@ -6,6 +6,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's1',
     name: 'Sarah Jenkins',
+    phone: '07700 900101',
     role: 'Senior Support Worker',
     skills: ['First Aid', 'MAPA', 'Epilepsy Training'],
     availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
@@ -18,6 +19,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's2',
     name: 'Mark Thompson',
+    phone: '07700 900102',
     role: 'Support Worker',
     skills: ['First Aid', 'Food Hygiene'],
     availability: ['Monday', 'Tuesday', 'Wednesday'],
@@ -30,6 +32,7 @@ export const mockStaff: Staff[] = [
   {
     id: 's3',
     name: 'Julie Berry',
+    phone: '07700 900103',
     role: 'Support Worker',
     skills: ['First Aid', 'Makaton'],
     availability: ['Wednesday', 'Thursday', 'Friday'],
@@ -37,6 +40,19 @@ export const mockStaff: Staff[] = [
     notes: 'Excellent communication skills.',
     status: 'available',
     support_level_max: 2,
+    created_at: now
+  },
+  {
+    id: 's4',
+    name: 'Priya Patel',
+    phone: '07700 900104',
+    role: 'Senior Support Worker',
+    skills: ['First Aid', 'MAPA', 'Epilepsy Training', 'Medication'],
+    availability: ['Monday', 'Tuesday', 'Thursday', 'Friday'],
+    preferred_users: ['u3'],
+    notes: 'Medication trained. Happy to pick up extra shifts.',
+    status: 'available',
+    support_level_max: 3,
     created_at: now
   }
 ];
@@ -50,6 +66,7 @@ export const mockServiceUsers: ServiceUser[] = [
     preferred_staff: ['s1', 's3'],
     required_ratio: '1:1',
     alerts: ['Nut Allergy'],
+    required_skills: ['MAPA'],
     sensory_notes: 'Sensitive to loud noises.',
     behaviour_notes: 'Can become anxious in crowds.',
     created_at: now
@@ -62,6 +79,7 @@ export const mockServiceUsers: ServiceUser[] = [
     preferred_staff: ['s2'],
     required_ratio: '1:3',
     alerts: [],
+    required_skills: [],
     sensory_notes: 'Loves bright colours.',
     behaviour_notes: 'Very social.',
     created_at: now
@@ -74,6 +92,7 @@ export const mockServiceUsers: ServiceUser[] = [
     preferred_staff: ['s1'],
     required_ratio: '1:1',
     alerts: ['Epilepsy'],
+    required_skills: ['Epilepsy Training'],
     sensory_notes: 'Prefers quiet spaces.',
     behaviour_notes: 'Needs clear transitions between activities.',
     created_at: now

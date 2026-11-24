@@ -8,10 +8,11 @@ import { Staff } from '@/types';
 const staffSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   role: z.enum(['Manager', 'Support Worker', 'Senior Support Worker', 'Volunteer']),
-  skills: z.string(),
+  skills: z.string().transform(val => val.split(',').map(s => s.trim()).filter(Boolean)),
   availability: z.array(z.string()).min(1, 'Select at least one day'),
   support_level_max: z.number().min(1).max(3),
   notes: z.string().optional(),
+  phone: z.string().optional().refine(v => !v || v.replace(/\D/g, '').length >= 10, 'Enter a full mobile number'),
 });
 
 type StaffFormData = z.infer<typeof staffSchema>;
@@ -27,7 +28,7 @@ export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
     resolver: zodResolver(staffSchema),
     defaultValues: staff ? {
       ...staff,
-      skills: staff.skills,
+      skills: staff.skills.join(', '),
     } as any : {
       role: 'Support Worker',
       availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
@@ -94,6 +95,19 @@ export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20"
                 placeholder="e.g. First Aid, Makaton, MAPA"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Mobile number</label>
+              <input 
+                {...register('phone')}
+                type="tel"
+                autoComplete="tel"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                placeholder="e.g. 07700 900123"
+              />
+              {errors.phone && <p className="text-rose-500 text-xs mt-1 font-bold">{errors.phone.message}</p>}
+              <p className="text-xs text-slate-400 mt-1">Used to send cover requests by WhatsApp or text.</p>
             </div>
 
             <div>

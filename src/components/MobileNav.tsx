@@ -13,6 +13,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCarero } from '@/lib/store';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems = [
@@ -23,6 +24,7 @@ const navItems = [
 ];
 
 export default function MobileNav() {
+  const { session, signOut, mode, settings } = useCarero();
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
@@ -95,13 +97,18 @@ export default function MobileNav() {
               <div className="mt-auto pt-6 border-t border-slate-100">
                 <div className="flex items-center gap-3 px-4">
                   <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center font-bold text-primary-600">
-                    JD
+                    {(session?.user.email || settings.centre_name).slice(0, 2).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-900">Jane Doe</p>
-                    <p className="text-sm font-medium text-slate-400">Centre Manager</p>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900 truncate">{settings.centre_name}</p>
+                    <p className="text-sm font-medium text-slate-400 truncate">{mode === 'cloud' ? session?.user.email : 'Demo mode'}</p>
                   </div>
                 </div>
+                {mode === 'cloud' && (
+                  <button onClick={signOut} className="mt-4 w-full px-4 py-3 rounded-2xl font-bold text-rose-500 hover:bg-rose-50 text-left">
+                    Sign Out
+                  </button>
+                )}
               </div>
             </motion.div>
           </>
