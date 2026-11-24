@@ -1,25 +1,35 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Users, 
-  Calendar, 
   Plus, 
-  MoreHorizontal, 
   AlertCircle, 
   FileText,
-  UserCheck,
   Search,
   ArrowRight,
   CheckCircle2,
   X,
   RefreshCcw,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays
 } from 'lucide-react';
+import { addDays, format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { mockStaff, mockServiceUsers } from '@/lib/mockData';
-import { Staff, ServiceUser, Assignment } from '@/types';
+import { Absence } from '@/types';
+import { useCarero } from '@/lib/store';
+import {
+  endOfWorkingWeek,
+  getAbsenceOn,
+  isAbsentOn,
+  planQuickReassign,
+  suggestReplacements,
+  toDateKey,
+  todayKey,
+  uncoveredAssignments,
+} from '@/lib/cover';
 
 import { exportToPDF } from '@/lib/exportUtils';
 
@@ -33,7 +43,6 @@ import {
   closestCenter,
   DragStartEvent,
   DragOverlay,
-  defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Draggable } from '@/components/Draggable';
@@ -44,13 +53,25 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function Dashboard() {
   const { toast } = useToast();
-  const [staff, setStaff] = useState<Staff[]>(mockStaff);
-  const [users, setUsers] = useState<ServiceUser[]>(mockServiceUsers);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const store = useCarero();
+  const { staff, users, absences, settings } = store;
+
+  const [date, setDate] = useState<string>(todayKey());
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [selectedStaffForEmergency, setSelectedStaffForEmergency] = useState<string | null>(null);
+  const [absenceStart, setAbsenceStart] = useState<string>(date);
+  const [absenceEnd, setAbsenceEnd] = useState<string>(date);
+  const [absenceReason, setAbsenceReason] = useState<Absence['reason']>('sick');
+  const [search, setSearch] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  const assignments = store.assignments.filter(a => a.date === date);
+  const absentStaff = staff.filter(s => isAbsentOn(s.id, date, absences));
+  const presentStaff = staff.filter(s => !isAbsentOn(s.id, date, absences));
+  const freeStaff = presentStaff
+    .filter(s => !assignments.some(a => a.staff_id === s.id))
+    .filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -63,61 +84,65 @@ export default function Dashboard() {
     })
   );
 
+  const shiftDate = (days: number) => setDate(d => toDateKey(addDays(parseISO(d), days)));
+
   const handleUnassignAll = () => {
-    if (confirm('Are you sure you want to clear the entire board?')) {
-      setAssignments([]);
+    if (confirm('Are you sure you want to clear the entire board for this day?')) {
+      store.clearDay(date);
       toast({
         title: "Board Cleared",
-        description: "All assignments have been removed.",
+        description: "All assignments for this day have been removed.",
       });
     }
   };
 
   const handleAutoFill = () => {
-    // Simple auto-fill logic: assign first available compatible staff to each empty user
-    setAssignments(prev => {
-      const newAssignments = [...prev];
-      let filledCount = 0;
-      users.forEach(user => {
-        if (!newAssignments.some(a => a.service_user_id === user.id)) {
-          const compatibleStaff = staff.find(s => 
-            s.status === 'available' && 
-            s.support_level_max >= user.support_level &&
-            !newAssignments.some(a => a.staff_id === s.id)
-          );
-          if (compatibleStaff) {
-            filledCount++;
-            newAssignments.push({
-              id: `a-${Date.now()}-${user.id}`,
-              staff_id: compatibleStaff.id,
-              service_user_id: user.id,
-              date: new Date().toISOString().split('T')[0],
-              start_time: '09:00',
-              end_time: '16:30',
-              created_at: new Date().toISOString()
-            });
-          }
-        }
-      });
-      
-      if (filledCount > 0) {
-        toast({
-          title: "Auto-Fill Complete",
-          description: `Automatically assigned ${filledCount} staff members.`,
-        });
-      } else {
-        toast({
-          title: "Auto-Fill",
-          description: "No compatible staff found for remaining slots.",
-        });
+    // Fill empty service users, highest support level first, using the same safety rules as sick cover.
+    const taken = new Set(assignments.map(a => a.staff_id));
+    const empty = users
+      .filter(u => !assignments.some(a => a.service_user_id === u.id))
+      .sort((a, b) => b.support_level - a.support_level);
+    let filledCount = 0;
+    for (const user of empty) {
+      const [best] = suggestReplacements({ user, dateKey: date, staff, assignments, absences, exclude: taken });
+      if (best) {
+        taken.add(best.staff.id);
+        store.assign({ staff_id: best.staff.id, service_user_id: user.id, date });
+        filledCount++;
       }
-      return newAssignments;
+    }
+    toast({
+      title: filledCount > 0 ? "Auto-Fill Complete" : "Auto-Fill",
+      description: filledCount > 0
+        ? `Automatically assigned ${filledCount} staff member${filledCount === 1 ? '' : 's'}.`
+        : "No suitable staff found for remaining slots.",
     });
   };
 
   const handleDuplicateYesterday = () => {
-    // In a real app, this would fetch from DB. Here we just mock it.
-    alert('Rota duplicated from Friday, May 8th');
+    const prev = toDateKey(addDays(parseISO(date), -1));
+    const source = store.assignments.filter(a => a.date === prev);
+    if (source.length === 0) {
+      toast({ title: "Nothing to copy", description: `No assignments on ${format(parseISO(prev), 'EEEE d MMM')}.` });
+      return;
+    }
+    store.replaceAssignments(date, source.map(({ staff_id, service_user_id, start_time, end_time, notes }) => ({
+      staff_id, service_user_id, start_time, end_time, notes, date,
+    })));
+    const absentCopied = source.filter(a => isAbsentOn(a.staff_id, date, absences)).length;
+    toast({
+      title: "Rota Copied",
+      description: `Copied ${source.length} assignment${source.length === 1 ? '' : 's'} from ${format(parseISO(prev), 'EEEE')}.` +
+        (absentCopied ? ` ${absentCopied} need cover because of absence.` : ''),
+    });
+  };
+
+  const assignTo = (staffId: string, userId: string) => {
+    store.assign({ staff_id: staffId, service_user_id: userId, date });
+    toast({
+      title: "Assignment Updated",
+      description: `Assigned ${staff.find(s => s.id === staffId)?.name} to ${users.find(u => u.id === userId)?.name}`,
+    });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -127,40 +152,13 @@ export default function Dashboard() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
-
     if (over && over.id.toString().startsWith('user-')) {
-      const staffId = active.id.toString();
-      const userId = over.id.toString().replace('user-', '');
-
-      // Check if staff is already assigned elsewhere and move them
-      setAssignments(prev => {
-        const otherAssignments = prev.filter(a => a.staff_id !== staffId);
-        // If the user already has someone assigned, they will be replaced (one staff per user for now)
-        const filteredAssignments = otherAssignments.filter(a => a.service_user_id !== userId);
-        
-        toast({
-          title: "Assignment Updated",
-          description: `Assigned ${staff.find(s => s.id === staffId)?.name} to ${users.find(u => u.id === userId)?.name}`,
-        });
-
-        return [
-          ...filteredAssignments,
-          {
-            id: `a-${Date.now()}`,
-            staff_id: staffId,
-            service_user_id: userId,
-            date: new Date().toISOString().split('T')[0],
-            start_time: '09:00',
-            end_time: '16:30',
-            created_at: new Date().toISOString()
-          }
-        ];
-      });
+      assignTo(active.id.toString(), over.id.toString().replace('user-', ''));
     }
   };
 
   const removeAssignment = (userId: string) => {
-    setAssignments(prev => prev.filter(a => a.service_user_id !== userId));
+    store.unassign(userId, date);
     toast({
       title: "Assignment Removed",
       description: "The staff member has been unassigned.",
@@ -169,98 +167,68 @@ export default function Dashboard() {
 
   const handleExport = async () => {
     setIsExporting(true);
-    await exportToPDF('rota-board', `daily-rota-${new Date().toISOString().split('T')[0]}`);
+    await exportToPDF('rota-board', `daily-rota-${date}`);
     setIsExporting(false);
   };
 
-  // Mock initial assignments
-  useEffect(() => {
-    const initialAssignments: Assignment[] = [
-      { 
-        id: 'a1', 
-        staff_id: 's1', 
-        service_user_id: 'u1', 
-        date: new Date().toISOString().split('T')[0],
-        start_time: '09:00', 
-        end_time: '16:30',
-        created_at: new Date().toISOString()
-      },
-      { 
-        id: 'a2', 
-        staff_id: 's2', 
-        service_user_id: 'u2', 
-        date: new Date().toISOString().split('T')[0],
-        start_time: '09:00', 
-        end_time: '16:30',
-        created_at: new Date().toISOString()
-      },
-    ];
-    setAssignments(initialAssignments);
-  }, []);
+  const getAssignmentForUser = (userId: string) => assignments.find(a => a.service_user_id === userId);
 
   const getStaffForUser = (userId: string) => {
-    const assignment = assignments.find(a => a.service_user_id === userId);
+    const assignment = getAssignmentForUser(userId);
     if (!assignment) return null;
     return staff.find(s => s.id === assignment.staff_id);
   };
 
-  const getMatchQuality = (staffId: string, userId: string) => {
-    const member = staff.find(s => s.id === staffId);
-    const user = users.find(u => u.id === userId);
-    if (!member || !user) return { quality: 'neutral', message: '' };
-
-    const reasons: string[] = [];
-    let quality: 'good' | 'warning' | 'conflict' | 'neutral' = 'neutral';
-
-    // Conflict: Support level mismatch
-    if (member.support_level_max < user.support_level) {
-      return { quality: 'conflict', message: `Level ${user.support_level} support required` };
-    }
-
-    // Good: Preferred match
-    if (user.preferred_staff.includes(staffId) || member.preferred_users.includes(userId)) {
-      return { quality: 'good', message: 'Preferred match' };
-    }
-
-    // Warning: Overbooked (if we had shift limits, but let's just check if they are already assigned today)
-    const isAlreadyAssigned = assignments.some(a => a.staff_id === staffId);
-    if (isAlreadyAssigned) {
-      return { quality: 'warning', message: 'Already assigned today' };
-    }
-
-    return { quality: 'neutral', message: '' };
+  const openAbsenceModal = () => {
+    setAbsenceStart(date);
+    setAbsenceEnd(date);
+    setAbsenceReason('sick');
+    setSelectedStaffForEmergency(null);
+    setIsEmergencyMode(true);
   };
 
   const handleMarkSick = (staffId: string) => {
     const member = staff.find(s => s.id === staffId);
-    setStaff(prev => prev.map(s => s.id === staffId ? { ...s, status: 'sick' } : s));
+    const end = absenceEnd < absenceStart ? absenceStart : absenceEnd;
+    store.addAbsence({ staff_id: staffId, start_date: absenceStart, end_date: end, reason: absenceReason });
     setSelectedStaffForEmergency(null);
     setIsEmergencyMode(false);
+    const range = absenceStart === end
+      ? format(parseISO(absenceStart), 'EEE d MMM')
+      : `${format(parseISO(absenceStart), 'EEE d MMM')} – ${format(parseISO(end), 'EEE d MMM')}`;
     toast({
-      title: "Emergency Absence Logged",
-      description: `${member?.name} marked as sick. Affected shifts highlighted.`,
-      
+      title: "Absence Logged",
+      description: `${member?.name} is off ${range}. Affected shifts are highlighted.`,
     });
   };
 
-  const affectedUsers = assignments
-    .filter(a => staff.find(s => s.id === a.staff_id)?.status === 'sick')
-    .map(a => users.find(u => u.id === a.service_user_id))
-    .filter(Boolean) as ServiceUser[];
+  const uncovered = uncoveredAssignments(date, store.assignments, absences);
+  const affectedUsers = users.filter(u => uncovered.some(a => a.service_user_id === u.id));
+
+  const handleQuickReassign = () => {
+    const { filled, unfilled } = planQuickReassign({ dateKey: date, staff, users, assignments, absences });
+    filled.forEach(({ assignment, staff: s }) =>
+      store.assign({
+        staff_id: s.id,
+        service_user_id: assignment.service_user_id,
+        date,
+        start_time: assignment.start_time,
+        end_time: assignment.end_time,
+      })
+    );
+    toast({
+      title: unfilled.length === 0 ? "All shifts covered" : "Some shifts still need cover",
+      description: [
+        filled.length ? `Covered: ${filled.map(f => `${users.find(u => u.id === f.assignment.service_user_id)?.name} → ${f.staff.name}`).join(', ')}.` : '',
+        unfilled.length ? `No suitable staff for ${unfilled.map(u => u.name).join(', ')}.` : '',
+      ].filter(Boolean).join(' '),
+    });
+  };
 
   const getSuggestedReplacements = (userId: string) => {
     const user = users.find(u => u.id === userId);
     if (!user) return [];
-
-    return staff
-      .filter(s => s.status === 'available' && !assignments.some(a => a.staff_id === s.id))
-      .filter(s => s.support_level_max >= user.support_level)
-      .sort((a, b) => {
-        const aPref = user.preferred_staff.includes(a.id) ? 1 : 0;
-        const bPref = user.preferred_staff.includes(b.id) ? 1 : 0;
-        return bPref - aPref;
-      })
-      .slice(0, 3);
+    return suggestReplacements({ user, dateKey: date, staff, assignments, absences }).slice(0, 3);
   };
 
   return (
@@ -269,7 +237,24 @@ export default function Dashboard() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Morning Dashboard</h1>
-          <p className="text-slate-500 font-medium">Saturday, May 9, 2026</p>
+          <div className="flex items-center gap-2 mt-1">
+            <button onClick={() => shiftDate(-1)} aria-label="Previous day" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <p className="text-slate-500 font-medium min-w-[11rem] text-center">{format(parseISO(date), 'EEEE, d MMMM yyyy')}</p>
+            <button onClick={() => shiftDate(1)} aria-label="Next day" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
+              <ChevronRight className="w-5 h-5" />
+            </button>
+            {date !== todayKey() && (
+              <button onClick={() => setDate(todayKey())} className="ml-1 px-3 py-1 text-xs font-bold text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors">
+                Today
+              </button>
+            )}
+            <label className="relative p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer" aria-label="Pick a date">
+              <CalendarDays className="w-5 h-5" />
+              <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+            </label>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -304,12 +289,12 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-lg font-bold text-rose-900">Staff Absence Alert</h3>
                   <p className="text-rose-600 font-medium">
-                    {affectedUsers.length} service users currently have no assigned staff due to illness.
+                    {affectedUsers.length} service user{affectedUsers.length === 1 ? '' : 's'} need{affectedUsers.length === 1 ? 's' : ''} cover: {absentStaff.filter(s => uncovered.some(a => a.staff_id === s.id)).map(s => s.name).join(', ')} {absentStaff.filter(s => uncovered.some(a => a.staff_id === s.id)).length === 1 ? 'is' : 'are'} off.
                   </p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button className="px-6 py-2.5 bg-rose-600 text-white rounded-xl font-bold calm-shadow hover:bg-rose-700 transition-colors flex items-center gap-2">
+                <button onClick={handleQuickReassign} className="px-6 py-2.5 bg-rose-600 text-white rounded-xl font-bold calm-shadow hover:bg-rose-700 transition-colors flex items-center gap-2">
                   <RefreshCcw className="w-4 h-4" />
                   Quick Reassign
                 </button>
@@ -359,6 +344,7 @@ export default function Dashboard() {
               )}
               {users.map((user) => {
                   const assignedStaff = getStaffForUser(user.id);
+                  const assignment = getAssignmentForUser(user.id);
                   const isAffected = affectedUsers.some(u => u.id === user.id);
 
                   return (
@@ -387,6 +373,9 @@ export default function Dashboard() {
                           </div>
                           <div>
                             <h3 className="font-bold text-slate-800">{user.name}</h3>
+                            {isAffected && assignedStaff && (
+                              <p className="text-[10px] font-bold text-rose-500 uppercase">{assignedStaff.name} off {getAbsenceOn(assignedStaff.id, date, absences)?.reason === 'sick' ? 'sick' : ''}</p>
+                            )}
                             <div className="flex gap-2 mt-1">
                               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Ratio {user.required_ratio}</span>
                               {user.alerts.length > 0 && (
@@ -411,7 +400,7 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <p className="text-xs font-bold text-primary-900">{assignedStaff.name}</p>
-                                <p className="text-[10px] font-bold text-primary-500 uppercase">09:00 - 16:30</p>
+                                <p className="text-[10px] font-bold text-primary-500 uppercase">{assignment?.start_time} - {assignment?.end_time}</p>
                               </div>
                               <button 
                                 onClick={(e) => {
@@ -430,16 +419,20 @@ export default function Dashboard() {
                                 Replacement Needed
                               </div>
                               <div className="flex gap-1">
-                                {getSuggestedReplacements(user.id).map(staff => (
+                                {getSuggestedReplacements(user.id).length === 0 && (
+                                  <span className="text-[10px] font-bold text-rose-400">No suitable staff free{(user.required_skills ?? []).length > 0 ? ` (needs ${user.required_skills!.join(', ')})` : ''}</span>
+                                )}
+                                {getSuggestedReplacements(user.id).map(({ staff: member, reasons }) => (
                                   <button
-                                    key={staff.id}
+                                    key={member.id}
+                                    title={reasons.join(' · ')}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDragEnd({ active: { id: staff.id }, over: { id: `user-${user.id}` } } as any);
+                                      assignTo(member.id, user.id);
                                     }}
                                     className="px-2 py-1 bg-white border border-rose-200 rounded-lg text-[10px] font-bold text-rose-600 hover:bg-rose-50 transition-colors"
                                   >
-                                    + {staff.name.split(' ')[0]}
+                                    + {member.name.split(' ')[0]}
                                   </button>
                                 ))}
                               </div>
@@ -457,9 +450,11 @@ export default function Dashboard() {
                         <div className="absolute -bottom-2 right-12 bg-white px-3 py-1 rounded-full shadow-sm border border-primary-100 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Sparkles className="w-3 h-3 text-primary-500" />
                           <span className="text-[10px] font-bold text-primary-600">
-                            {user.preferred_staff.length > 0 
-                              ? `${staff.find(s => s.id === user.preferred_staff[0])?.name.split(' ')[0]} is a preferred match`
-                              : 'Recommended match available'}
+                            {(() => {
+                              const [best] = getSuggestedReplacements(user.id);
+                              if (!best) return 'No suitable staff free';
+                              return `${best.staff.name.split(' ')[0]}: ${best.reasons[0]}`;
+                            })()}
                           </span>
                         </div>
                       )}
@@ -480,18 +475,20 @@ export default function Dashboard() {
                   <input 
                     type="text" 
                     placeholder="Search..." 
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
                     className="pl-9 pr-4 py-2 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 w-32 focus:w-48 transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                {staff.filter(s => s.status === 'available').length === 0 && (
+                {freeStaff.length === 0 && (
                   <div className="text-center py-8">
                     <p className="text-slate-400 text-xs font-bold uppercase">All staff assigned or absent</p>
                   </div>
                 )}
-                {staff.filter(s => s.status === 'available').map((member) => (
+                {freeStaff.map((member) => (
                   <Draggable key={member.id} id={member.id}>
                     <div 
                       className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:scale-[1.02] hover:shadow-md transition-all group border-l-4 border-l-transparent hover:border-l-primary-500"
@@ -513,9 +510,37 @@ export default function Dashboard() {
                 ))}
               </div>
 
+              {absentStaff.length > 0 && (
+                <div className="mt-6 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Off today</p>
+                  {absentStaff.map(member => {
+                    const ab = getAbsenceOn(member.id, date, absences)!;
+                    return (
+                      <div key={member.id} className="flex items-center justify-between p-3 bg-rose-50/60 border border-rose-100 rounded-xl">
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">{member.name}</p>
+                          <p className="text-[10px] font-bold text-rose-500 uppercase">
+                            {ab.reason} · until {format(parseISO(ab.end_date), 'EEE d MMM')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            store.deleteAbsence(ab.id);
+                            toast({ title: "Absence removed", description: `${member.name} is back on the rota.` });
+                          }}
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-800 px-2 py-1 rounded-lg hover:bg-white transition-colors"
+                        >
+                          Back early
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Absence Button */}
               <button 
-                onClick={() => setIsEmergencyMode(true)}
+                onClick={openAbsenceModal}
                 className="w-full mt-6 py-4 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-2xl border border-rose-100 transition-all group flex flex-col items-center gap-1"
               >
                 <div className="flex items-center gap-2 font-bold text-sm">
@@ -566,15 +591,15 @@ export default function Dashboard() {
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h2 className="text-2xl font-black text-slate-900">Mark Staff Absence</h2>
-                    <p className="text-slate-500 font-medium">Who called in sick today?</p>
+                    <p className="text-slate-500 font-medium">Who&apos;s off, and for how long?</p>
                   </div>
                   <button onClick={() => setIsEmergencyMode(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                     <X className="w-6 h-6 text-slate-400" />
                   </button>
                 </div>
 
-                <div className="space-y-3 mb-8">
-                  {staff.filter(s => s.status === 'available').map(member => (
+                <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto">
+                  {presentStaff.map(member => (
                     <button
                       key={member.id}
                       onClick={() => setSelectedStaffForEmergency(member.id)}
@@ -599,6 +624,48 @@ export default function Dashboard() {
                       )}
                     </button>
                   ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <label className="block">
+                    <span className="block text-xs font-bold text-slate-500 mb-1">From</span>
+                    <input
+                      type="date"
+                      value={absenceStart}
+                      onChange={e => {
+                        setAbsenceStart(e.target.value);
+                        if (absenceEnd < e.target.value) setAbsenceEnd(e.target.value);
+                      }}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs font-bold text-slate-500 mb-1">Until (inclusive)</span>
+                    <input
+                      type="date"
+                      value={absenceEnd}
+                      min={absenceStart}
+                      onChange={e => setAbsenceEnd(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium"
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-6">
+                  <button onClick={() => setAbsenceEnd(absenceStart)} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors", absenceEnd === absenceStart ? "bg-rose-50 border-rose-200 text-rose-700" : "border-slate-200 text-slate-500 hover:bg-slate-50")}>
+                    Just this day
+                  </button>
+                  <button onClick={() => setAbsenceEnd(endOfWorkingWeek(absenceStart))} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors", absenceEnd !== absenceStart && absenceEnd === endOfWorkingWeek(absenceStart) ? "bg-rose-50 border-rose-200 text-rose-700" : "border-slate-200 text-slate-500 hover:bg-slate-50")}>
+                    Rest of the week
+                  </button>
+                  <select
+                    value={absenceReason}
+                    onChange={e => setAbsenceReason(e.target.value as Absence['reason'])}
+                    className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 bg-white"
+                  >
+                    <option value="sick">Sick</option>
+                    <option value="leave">Leave</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
 
                 <div className="flex gap-4">

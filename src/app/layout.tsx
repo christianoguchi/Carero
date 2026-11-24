@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import Sidebar from "@/components/Sidebar";
 import MobileNav from "@/components/MobileNav";
 import { Toaster } from "@/components/ui/toaster";
+import { CareroProvider } from "@/lib/store";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={cn(inter.className, "min-h-screen bg-background text-foreground")}>
+        <CareroProvider>
         <div className="flex min-h-screen overflow-hidden">
           <Sidebar />
           <MobileNav />
@@ -29,6 +31,7 @@ export default function RootLayout({
           </main>
           <Toaster />
         </div>
+        </CareroProvider>
       </body>
     </html>
   );

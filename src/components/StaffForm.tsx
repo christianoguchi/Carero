@@ -8,7 +8,7 @@ import { Staff } from '@/types';
 const staffSchema = z.object({
   name: z.string().min(2, 'Name is required'),
   role: z.enum(['Manager', 'Support Worker', 'Senior Support Worker', 'Volunteer']),
-  skills: z.string(),
+  skills: z.string().transform(val => val.split(',').map(s => s.trim()).filter(Boolean)),
   availability: z.array(z.string()).min(1, 'Select at least one day'),
   support_level_max: z.number().min(1).max(3),
   notes: z.string().optional(),
@@ -27,7 +27,7 @@ export function StaffForm({ staff, onSubmit, onClose }: StaffFormProps) {
     resolver: zodResolver(staffSchema),
     defaultValues: staff ? {
       ...staff,
-      skills: staff.skills,
+      skills: staff.skills.join(', '),
     } as any : {
       role: 'Support Worker',
       availability: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],

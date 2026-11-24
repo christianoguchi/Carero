@@ -38,6 +38,18 @@ export const mockStaff: Staff[] = [
     status: 'available',
     support_level_max: 2,
     created_at: now
+  },
+  {
+    id: 's4',
+    name: 'Priya Patel',
+    role: 'Senior Support Worker',
+    skills: ['First Aid', 'MAPA', 'Epilepsy Training', 'Medication'],
+    availability: ['Monday', 'Tuesday', 'Thursday', 'Friday'],
+    preferred_users: ['u3'],
+    notes: 'Medication trained. Happy to pick up extra shifts.',
+    status: 'available',
+    support_level_max: 3,
+    created_at: now
   }
 ];
 
@@ -50,6 +62,7 @@ export const mockServiceUsers: ServiceUser[] = [
     preferred_staff: ['s1', 's3'],
     required_ratio: '1:1',
     alerts: ['Nut Allergy'],
+    required_skills: ['MAPA'],
     sensory_notes: 'Sensitive to loud noises.',
     behaviour_notes: 'Can become anxious in crowds.',
     created_at: now
@@ -62,6 +75,7 @@ export const mockServiceUsers: ServiceUser[] = [
     preferred_staff: ['s2'],
     required_ratio: '1:3',
     alerts: [],
+    required_skills: [],
     sensory_notes: 'Loves bright colours.',
     behaviour_notes: 'Very social.',
     created_at: now
@@ -74,6 +88,7 @@ export const mockServiceUsers: ServiceUser[] = [
     preferred_staff: ['s1'],
     required_ratio: '1:1',
     alerts: ['Epilepsy'],
+    required_skills: ['Epilepsy Training'],
     sensory_notes: 'Prefers quiet spaces.',
     behaviour_notes: 'Needs clear transitions between activities.',
     created_at: now
